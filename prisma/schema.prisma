@@ -1,0 +1,133 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum AccountType {
+  expense
+  income
+  tax
+  payment_account
+  account_payable
+  account_receivable
+}
+
+enum TransactionType {
+  expense
+  income
+}
+
+enum PaymentStatus {
+  unpaid
+  partial
+  paid
+}
+
+enum PaymentMethod {
+  CARD
+  CASH
+  TRANSFER
+  OTHER
+}
+
+model Vendor {
+  id               Int                     @id @default(autoincrement())
+  name             String
+  legalName        String?
+  createdAt        DateTime                @default(now())
+  updatedAt        DateTime                @updatedAt
+  identifications  VendorIdentification[]
+  transactions     Transaction[]
+}
+
+model VendorIdentification {
+  id        Int     @id @default(autoincrement())
+  vendorId  Int
+  type      String
+  value     String
+  vendor    Vendor  @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+
+  @@unique([vendorId, type])
+  @@index([type])
+}
+
+model Account {
+  id          Int          @id @default(autoincrement())
+  name        String
+  type        AccountType
+  parentId    Int?
+  parent      Account?     @relation("AccountToParent", fields: [parentId], references: [id])
+  children    Account[]    @relation("AccountToParent")
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  legacyCategory     String?
+  legacySubCategory  String?
+  source             String? // default | custom
+
+  transactions Transaction[] @relation("TransactionCategory")
+  payments     Transaction[] @relation("TransactionPaymentAccount")
+
+  @@index([type])
+}
+
+model Receipt {
+  id            String      @id @default(cuid())
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  originalName  String
+  mimeType      String
+  size          Int
+  storagePath   String
+  rawText       String
+  json          Json
+  ocrProvider   String
+  aiProvider    String
+
+  // Relación 1–1 con Transaction (lado inverso)
+  transaction   Transaction? @relation(name: "ReceiptTransaction")
+}
+
+model Transaction {
+  id               String          @id @default(cuid())
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
+  type             TransactionType
+  amount           Decimal         @db.Decimal(14, 2)
+  subtotalAmount   Decimal?        @db.Decimal(14, 2)
+  taxAmount        Decimal?        @db.Decimal(14, 2)
+  taxPercentage    Decimal?        @db.Decimal(5, 2)
+  currency         String
+  date             DateTime
+
+  description      String?
+  invoiceNumber    String?
+
+  paymentStatus    PaymentStatus   @default(unpaid)
+  paymentMethod    PaymentMethod?
+  paidAt           DateTime?
+
+  // Relaciones contables
+  accountId        Int?
+  account          Account?        @relation("TransactionCategory", fields: [accountId], references: [id])
+
+  vendorId         Int?
+  vendor           Vendor?         @relation(fields: [vendorId], references: [id])
+
+  paymentAccountId Int?
+  paymentAccount   Account?        @relation("TransactionPaymentAccount", fields: [paymentAccountId], references: [id])
+
+  // 1–1 con Receipt: FK único
+  receiptId        String?         @unique
+  receipt          Receipt?        @relation(name: "ReceiptTransaction", fields: [receiptId], references: [id])
+
+  rawText          String?
+
+  @@index([type, date])
+  @@index([vendorId])
+  @@index([accountId])
+}
