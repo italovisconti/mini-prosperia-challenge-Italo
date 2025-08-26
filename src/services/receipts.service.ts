@@ -3,45 +3,100 @@ import { getOcrProvider } from "./ocr/index.js";
 import { getAiProvider } from "./ai/index.js";
 import { naiveParse } from "./parsing/parser.js";
 import { categorize } from "./parsing/categorizer.js";
+import { logger } from "../config/logger.js";
+import { getOrCreateVendorByIdentifications } from "./vendors.service.js";
+import { ParsedReceipt } from "../types/receipt.js";
+import { ComputedFields } from "../types/computedFields.js";
+import { getToImageProvider } from "./toImage/index.js";
 
 export async function processReceipt(filePath: string, meta: { originalName: string; mimeType: string; size: number }) {
   const ocr = getOcrProvider();
   const ai = getAiProvider();
+  const toImage = getToImageProvider();
 
-  // TODO: Implementar ocr.extractText con Tesseract
-  const ocrOut = await ocr.extractText({ filePath, mimeType: meta.mimeType });
+  const { imagePath, mimeType: ocrMime } = await toImage.convert({ filePath, mimeType: meta.mimeType });
+  const ocrOut = await ocr.extractText({ filePath: imagePath, mimeType: ocrMime });
 
   // 1) Reglas rápidas (incluye vendor identifications naive)
   const base = naiveParse(ocrOut.text);
 
   // TODO: Implementar
   // 2) Implementar IA opcional (esto mejora la extracción de información con una IA)
-  const aiStruct = await ai.structure(ocrOut.text).catch(() => ({} as any));
+  const aiStruct = await ai.structure(ocrOut.text);
 
   // TODO: Implementar
   // 3) Implementar Categoría heurística
   const category = await categorize(ocrOut.text);
 
+  const aiCategory = await ai.categorize({ rawText: ocrOut.text });
+
+  // amount: 67.84,
+  // subtotalAmount: null,
+  // taxAmount: null,
+  // taxPercentage: 7,
+
+  const computedValues = computeMissing({
+    amount: aiStruct.amount ?? base.amount ?? null,
+    subtotalAmount: aiStruct.subtotalAmount ?? base.subtotalAmount ?? null,
+    taxAmount: aiStruct.taxAmount ?? base.taxAmount ?? null,
+    taxPercentage: aiStruct.taxPercentage ?? base.taxPercentage ?? null
+  });
+
+  // check if date is valid
+  if (aiStruct.date && isNaN(Date.parse(aiStruct.date))) {
+    logger.warn({ message: "Invalid date format detected", date: aiStruct.date });
+    aiStruct.date = null;
+  } else if (base.date && isNaN(Date.parse(base.date))) {
+    logger.warn({ message: "Invalid date format detected", date: base.date });
+    base.date = null;
+  }
 
   // TODO: Modificar para poder guardar
-  const json = {
-    amount: (aiStruct as any).amount ?? base.amount ?? null,
-    subtotalAmount: (aiStruct as any).subtotalAmount ?? base.subtotalAmount ?? null,
-    taxAmount: (aiStruct as any).taxAmount ?? base.taxAmount ?? null,
-    taxPercentage: (aiStruct as any).taxPercentage ?? base.taxPercentage ?? null,
-    type: (aiStruct as any).type ?? "expense",
-    currency: (aiStruct as any).currency ?? "USD",
-    date: (aiStruct as any).date ?? base.date ?? null,
-    paymentMethod: (aiStruct as any).paymentMethod ?? null,
-    description: (aiStruct as any).description ?? null,
-    invoiceNumber: (aiStruct as any).invoiceNumber ?? base.invoiceNumber ?? null,
-    category: category,
-    vendorId: (aiStruct as any).vendorId ?? null,
-    vendorName: (aiStruct as any).vendorName ?? base.vendorName ?? null,
-    vendorIdentifications: (aiStruct as any).vendorIdentifications ?? base.vendorIdentifications ?? [],
-    items: (aiStruct as any).items ?? [],
-    rawText: ocrOut.text
+  const json: ParsedReceipt  = {
+    amount: computedValues.amount,
+    subtotalAmount: computedValues.subtotalAmount,
+    taxAmount: computedValues.taxAmount,
+    taxPercentage: computedValues.taxPercentage,
+    type: aiStruct.type ?? "expense", // This can be obtained from the AI Category
+    currency: aiStruct.currency ?? "USD",
+    date: aiStruct.date ?? base.date ?? null,
+    paymentMethod: aiStruct.paymentMethod ?? null,
+    description: aiStruct.description ?? null,
+    invoiceNumber: aiStruct.invoiceNumber ?? base.invoiceNumber ?? null,
+    category: aiCategory.category ?? category ?? null,
+    vendorId: aiStruct.vendorId ?? null,
+    vendorName: aiStruct.vendorName ?? base.vendorName ?? null,
+    vendorIdentifications: aiStruct.vendorIdentifications ?? base.vendorIdentifications ?? [],
+    items: aiStruct.items ?? [],
+    rawText: ocrOut.text,
+    // PruebaTecnicaInfo: null as any
   };
+
+  const PruebaTecnicaInfo = {
+    amount: aiStruct.amount ?? base.amount ?? null,
+    subtotalAmount: aiStruct.subtotalAmount ?? base.subtotalAmount ?? null,
+    taxAmount: aiStruct.taxAmount ?? base.taxAmount ?? null,
+    taxPercentage: aiStruct.taxPercentage ?? base.taxPercentage ?? null,
+    vendorName: aiStruct.vendorName ?? base.vendorName ?? null,
+    vendorIdentifications: aiStruct.vendorIdentifications ?? base.vendorIdentifications ?? [],
+    category: aiCategory.category ?? category ?? null,
+  };
+
+  // json.PruebaTecnicaInfo = PruebaTecnicaInfo;
+
+  console.log("Final extracted JSON:", json);
+
+  if (json.amount === null) {
+    logger.error("Amount could not be extracted. Extracted JSON: " + JSON.stringify(json));
+    throw new Error(`Amount could not be extracted. Extracted JSON: ${JSON.stringify(json)}`);
+  }
+
+  const vendor = await getOrCreateVendorByIdentifications({
+    vendorName: json.vendorName,
+    vendorIdentifications: json.vendorIdentifications
+  });
+
+  json.vendorId = vendor?.id ?? null;
 
   const saved = await prisma.receipt.create({
     data: {
@@ -56,5 +111,79 @@ export async function processReceipt(filePath: string, meta: { originalName: str
     }
   });
 
+  logger.info({ message: "Saved receipt with ID:", receiptId: saved.id });
+
+  const savedTransaction = await prisma.transaction.create({
+    data: {
+      receiptId: saved.id,
+      type: json.type,
+      amount: json.amount,
+      subtotalAmount: json.subtotalAmount,
+      taxAmount: json.taxAmount,
+      taxPercentage: json.taxPercentage,
+      currency: json.currency ?? "USD",
+      date: json.date ? new Date(json.date) : new Date(),
+      accountId: json.category,
+      vendorId: vendor?.id ?? null,
+    }
+  });
+
+  logger.info({ message: "Saved transaction with ID:", transactionId: savedTransaction.id });
+
   return saved;
+}
+
+function computeMissing(fields: ComputedFields): ComputedFields {
+  const toTwoDecimals = (v: number) => Math.trunc(v * 100) / 100;
+  let { amount, subtotalAmount, taxAmount, taxPercentage } = fields;
+
+  if (taxPercentage != null && taxPercentage > 1) {
+    taxPercentage /= 100;
+  }
+
+  // Case 1: amount + taxPercentage
+  if (amount != null && taxPercentage != null && subtotalAmount == null && taxAmount == null) {
+    subtotalAmount = toTwoDecimals(amount / (1 + taxPercentage));
+    taxAmount = toTwoDecimals(amount - subtotalAmount);
+  }
+  // Case 2: amount + taxAmount
+  else if (amount != null && taxAmount != null && subtotalAmount == null) {
+    subtotalAmount = toTwoDecimals(amount - taxAmount);
+    if (subtotalAmount !== 0) {
+      taxPercentage = toTwoDecimals(taxAmount / subtotalAmount);
+    }
+  }
+  // Case 3: subtotal + taxPercentage
+  else if (subtotalAmount != null && taxPercentage != null && taxAmount == null && amount == null) {
+    taxAmount = toTwoDecimals(subtotalAmount * taxPercentage);
+    amount = toTwoDecimals(subtotalAmount + taxAmount);
+  }
+  // Case 4: subtotal + taxAmount
+  else if (subtotalAmount != null && taxAmount != null && amount == null) {
+    amount = toTwoDecimals(subtotalAmount + taxAmount);
+    if (subtotalAmount !== 0) {
+      taxPercentage = toTwoDecimals(taxAmount / subtotalAmount);
+    }
+  }
+  // Case 5: taxAmount + taxPercentage
+  else if (taxAmount != null && taxPercentage != null && subtotalAmount == null) {
+    if (taxPercentage !== 0) {
+      subtotalAmount = toTwoDecimals(taxAmount / taxPercentage);
+      amount = toTwoDecimals(subtotalAmount + taxAmount);
+    }
+  }
+  // Case 6: amount + subtotal
+  else if (amount != null && subtotalAmount != null && taxAmount == null) {
+    taxAmount = toTwoDecimals(amount - subtotalAmount);
+    if (subtotalAmount !== 0) {
+      taxPercentage = toTwoDecimals(taxAmount / subtotalAmount);
+    }
+  }
+
+  return {
+    amount: amount != null ? toTwoDecimals(amount) : null,
+    subtotalAmount: subtotalAmount != null ? toTwoDecimals(subtotalAmount) : null,
+    taxAmount: taxAmount != null ? toTwoDecimals(taxAmount) : null,
+    taxPercentage: taxPercentage != null ? Math.round(taxPercentage * 100) : null
+  };
 }

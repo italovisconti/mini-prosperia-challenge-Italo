@@ -1,4 +1,5 @@
 import { AiProvider } from "./ai.interface.js";
+import type { ParsedReceipt } from "../../types/receipt.js";
 export class MockAi implements AiProvider {
   async structure(rawText: string) {
     const totalMatch = rawText.match(/total\D*(\d+[\.,]\d{2})/i);
@@ -10,7 +11,7 @@ export class MockAi implements AiProvider {
     const lines = rawText.split(/\n|\r/).map(l=>l.trim()).filter(Boolean);
     const vendorName = lines[0]?.slice(0,80) || null;
 
-    return {
+    const result: Partial<ParsedReceipt> = {
       amount: totalMatch ? Number(totalMatch[1].replace(",", ".")) : null,
       subtotalAmount: null,
       taxAmount: taxMatch ? Number(taxMatch[2].replace(",", ".")) : null,
@@ -22,6 +23,7 @@ export class MockAi implements AiProvider {
       description: null,
       vendorName
     };
+    return result;
   }
   async categorize() { return {}; }
 }

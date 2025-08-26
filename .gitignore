@@ -19,3 +19,6 @@ uploads
 
 # Prisma
 prisma/dev.db
+
+# IDEA
+.idea

@@ -6,6 +6,11 @@ export type Item = {
   category: number | null; // Account.id
 };
 
+export type VendorIdentification = {
+  type: string;
+  value: string;
+};
+
 export type ParsedReceipt = {
   amount: number | null;
   subtotalAmount: number | null;
@@ -20,7 +25,7 @@ export type ParsedReceipt = {
   category: number | null; // Account.id
   vendorId: number | null;
   vendorName?: string | null;
-  vendorIdentifications?: string[];
+  vendorIdentifications?: VendorIdentification[];
   items: Item[];
   rawText: string;
 };
