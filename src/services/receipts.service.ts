@@ -8,14 +8,21 @@ import { getOrCreateVendorByIdentifications } from "./vendors.service.js";
 import { ParsedReceipt } from "../types/receipt.js";
 import { ComputedFields } from "../types/computedFields.js";
 import { getToImageProvider } from "./toImage/index.js";
+import { getPreprocessProvider } from "./preprocess/index.js";
 
 export async function processReceipt(filePath: string, meta: { originalName: string; mimeType: string; size: number }) {
   const ocr = getOcrProvider();
   const ai = getAiProvider();
   const toImage = getToImageProvider();
+  const preprocess = getPreprocessProvider();
 
+  // Convertir a Imagen
   const { imagePath, mimeType: ocrMime } = await toImage.convert({ filePath, mimeType: meta.mimeType });
-  const ocrOut = await ocr.extractText({ filePath: imagePath, mimeType: ocrMime });
+  // Preprocesar Imagen
+  const { imagePath: processedImagePath, mimeType: processedMimeType } = await preprocess.preprocessToOCR({ filePath: imagePath, mimeType: ocrMime });
+
+  // const ocrOut = await ocr.extractText({ filePath: imagePath, mimeType: ocrMime });
+  const ocrOut = await ocr.extractText({ filePath: processedImagePath, mimeType: processedMimeType });
 
   // 1) Reglas rápidas (incluye vendor identifications naive)
   const base = naiveParse(ocrOut.text);
@@ -101,9 +108,9 @@ export async function processReceipt(filePath: string, meta: { originalName: str
   const saved = await prisma.receipt.create({
     data: {
       originalName: meta.originalName,
-      mimeType: meta.mimeType,
+      mimeType: processedImagePath,
       size: meta.size,
-      storagePath: filePath,
+      storagePath: processedImagePath,
       rawText: ocrOut.text,
       json,
       ocrProvider: process.env.OCR_PROVIDER || "tesseract",
@@ -134,7 +141,7 @@ export async function processReceipt(filePath: string, meta: { originalName: str
 }
 
 function computeMissing(fields: ComputedFields): ComputedFields {
-  const toTwoDecimals = (v: number) => Math.trunc(v * 100) / 100;
+  const toTwoDecimals = (v: number) => Math.round(v * 100) / 100;
   let { amount, subtotalAmount, taxAmount, taxPercentage } = fields;
 
   if (taxPercentage != null && taxPercentage > 1) {
@@ -178,6 +185,9 @@ function computeMissing(fields: ComputedFields): ComputedFields {
     if (subtotalAmount !== 0) {
       taxPercentage = toTwoDecimals(taxAmount / subtotalAmount);
     }
+    // case 7 amount + subtotal + taxAmount
+  } else if (amount != null && subtotalAmount != null && taxAmount != null) {
+    taxPercentage = toTwoDecimals(taxAmount / subtotalAmount);
   }
 
   return {

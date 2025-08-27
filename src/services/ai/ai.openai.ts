@@ -15,7 +15,7 @@ export class OpenAiProvider implements AiProvider {
     this.baseUrl = process.env.OPENAI_BASE_URL || 'http://localhost:8080';
     this.token = process.env.PROSPERIA_TOKEN || '';
 
-    var defStructurePrompt = `You are an intelligent assistant that helps process invoices and receipts.
+    var defStructurePrompt = `You are an intelligent assistant that helps process invoices and receipts either in spanish or english.
             Your task is to analyze the text extracted by OCR (rawText) and return the relevant information in JSON format.
             Extract fields only if they are present.
             If any field is not present, use null or an empty list.
@@ -23,7 +23,7 @@ export class OpenAiProvider implements AiProvider {
     this.structurePrompt =
       process.env.OPENAI_STRUCTURE_PROMPT || defStructurePrompt;
 
-    var defCategorizePrompt = `You are an intelligent assistant that helps categorize invoices and receipts.
+    var defCategorizePrompt = `You are an intelligent assistant that helps categorize invoices and receipts either in spanish or english.
             Your task is to analyze the text extracted by OCR (rawText) and return the relevant information in JSON format.
             Extract fields only if they are present.
             If any field is not present, use null or an empty list.
