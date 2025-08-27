@@ -8,12 +8,11 @@ export class sharpPreprocess implements preprocessProvider {
   async preprocessToOCR(input: { filePath: string; mimeType: string }): Promise<{ imagePath: string, mimeType: string }> {
     const { filePath, mimeType } = input;
 
-    // 0) Validate input file exists
+    // Validate input file exists
     if (!fs.existsSync(filePath)) {
       throw new Error(`preprocessToOCR: file not found: ${filePath}`);
     }
 
-    // 1) Decide output path and output mime
     const dir = path.dirname(filePath);
     const base = path.basename(filePath, path.extname(filePath));
     const outPath = path.join(dir, `${base}-ocr-gray.png`);
@@ -26,7 +25,7 @@ export class sharpPreprocess implements preprocessProvider {
     }
 
     try {
-      // 3) Load image and read metadata (to decide on optional resizing)
+      // Load image and read metadata (to decide on optional resizing)
       const img = sharp(filePath, { failOn: "none" });
       const meta = await img.metadata();
 
@@ -42,12 +41,11 @@ export class sharpPreprocess implements preprocessProvider {
         if (upscaled > currentWidth) resizeWidth = upscaled;
       }
 
-      // 5) Build preprocessing pipeline (no binarization)
+      // Build preprocessing pipeline
       //    Steps:
       //      - rotate(): auto-fix orientation using EXIF
       //      - grayscale(): reduce color noise
       //      - median(1): light denoise
-      //      - trim(): remove uniform margins
       //      - optional resize to target width
       //      - modulate + gamma: gentle contrast/brightness shaping
       //      - sharpen(): slight sharpen to reinforce edges
@@ -55,19 +53,19 @@ export class sharpPreprocess implements preprocessProvider {
       let pipeline = sharp(filePath, { failOn: "none" })
         .rotate()
         .grayscale()
-        .median(1)
-        .trim();
+        .median(1);
 
-      if (resizeWidth) {
-        pipeline = pipeline.resize({ width: resizeWidth, kernel: sharp.kernel.lanczos3 });
-      }
+      // Resize deactivated
+      // if (resizeWidth) {
+      //   pipeline = pipeline.resize({ width: resizeWidth, kernel: sharp.kernel.lanczos3 });
+      // }
 
       pipeline = pipeline
         .modulate({ brightness: 1.02, saturation: 1.0 })
         .linear(1.03, -5)
         .gamma(1.01)
         .sharpen({ sigma: 0.7 })
-        .png({ compressionLevel: 1, adaptiveFiltering: true, force: true });
+        .png({ compressionLevel: 0, adaptiveFiltering: true, force: true });
 
       await pipeline.toFile(outPath);
 
@@ -79,7 +77,6 @@ export class sharpPreprocess implements preprocessProvider {
           "rotate(EXIF)",
           "grayscale",
           "median(1)",
-          "trim",
           resizeWidth ? `resize(width=${resizeWidth})` : "resize(skipped)",
           "modulate(bright=1.02)",
           "linear(1.03, -5)",

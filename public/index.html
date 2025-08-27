@@ -1,38 +1,254 @@
 <!doctype html>
 <html lang="es">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Mini‑Prosperia Uploader</title>
-  <style>
-    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu;max-width:720px;margin:40px auto;padding:0 16px;}
-    .card{border:1px solid #e5e7eb;border-radius:16px;padding:20px;box-shadow:0 1px 2px rgba(0,0,0,0.04)}
-    button{padding:10px 16px;border-radius:10px;border:1px solid #e5e7eb;background:#f8fafc;cursor:pointer}
-    pre{background:#0b1020;color:#d1d5db;padding:12px;border-radius:12px;overflow:auto}
-    .muted{color:#6b7280}
-  </style>
-</head>
-<body>
-  <h1>Mini‑Prosperia – Upload</h1>
-  <p class="muted">Sube un recibo (PNG/JPG/PDF) y verás el JSON extraído.</p>
-  <div class="card">
-    <form id="f">
-      <input type="file" name="file" accept=".png,.jpg,.jpeg,.pdf" required />
-      <button type="submit">Subir</button>
-    </form>
-    <div id="out"></div>
-  </div>
-  <script>
-    const form = document.getElementById('f');
-    const out = document.getElementById('out');
-    form.addEventListener('submit', async (e)=>{
-      e.preventDefault();
-      const fd = new FormData(form);
-      out.innerHTML = '<p class="muted">Procesando…</p>';
-      const res = await fetch('/api/receipts', { method:'POST', body: fd });
-      const json = await res.json();
-      out.innerHTML = '<h3>Resultado</h3><pre>'+JSON.stringify(json, null, 2)+'</pre>';
-    });
-  </script>
-</body>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Mini‑Prosperia Uploader</title>
+    <!-- Bootstrap 5 (CDN) -->
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+      integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH"
+      crossorigin="anonymous"
+    />
+    <style>
+      :root {
+        color-scheme: light;
+        --bs-body-bg: #f9fafb;
+        --bs-body-color: #111827;
+        --bs-secondary-color: #6b7280;
+        --bs-tertiary-color: #9ca3af;
+        --bs-border-color: #e5e7eb;
+        --bs-card-bg: #ffffff;
+        --bs-primary: #16a34a;
+        --bs-primary-rgb: 22, 163, 74;
+        --bs-code-color: #d63384;
+      }
+      body { background: var(--bs-body-bg); color: var(--bs-body-color); }
+      .page { max-width: 960px; }
+      .card { box-shadow: 0 2px 20px rgba(0,0,0,.05); border-color: var(--bs-border-color); }
+      .card.bg-dark { background-color: var(--bs-card-bg) !important; }
+      pre { background: #f3f4f6; color: #1f2937; border-radius: .5rem; padding: 12px; border: 1px solid var(--bs-border-color); }
+      code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; font-size: .9rem; }
+      .kv dt { color:#6b7280; min-width: 160px; }
+      .nowrap { white-space: nowrap; }
+      /* Accordion light fix */
+      .accordion-item { background-color: var(--bs-card-bg); border-color: var(--bs-border-color) !important; }
+      .accordion-button { background-color: var(--bs-card-bg); color: var(--bs-body-color); }
+      .accordion-button:not(.collapsed) { background-color: #f9fafb; color: var(--bs-body-color); box-shadow: inset 0 -1px 0 var(--bs-border-color); }
+    </style>
+  </head>
+  <body class="text-dark">
+      <header class="py-3 mb-4" style="background: #16a34a; color: #fff;">
+        <div class="container text-center">
+          <h1 class="h3 fw-semibold m-0">Mini‑Prosperia – Uploader</h1>
+        </div>
+      </header>
+      <div class="container page py-4">
+
+      <div class="card bg-light border mb-4">
+        <div class="card-body">
+          <form id="f" class="row g-3 align-items-center">
+            <div class="col-12 col-md-8">
+              <input class="form-control" type="file" name="file" accept=".png,.jpg,.jpeg,.pdf" required />
+            </div>
+            <div class="col-12 col-md-4 d-grid d-md-flex gap-2">
+              <button id="btnUpload" type="submit" class="btn btn-primary">
+                <span class="spinner-border spinner-border-sm me-2 d-none" role="status" aria-hidden="true"></span>
+                Subir y procesar
+              </button>
+              <button id="btnReset" type="button" class="btn btn-outline-secondary">Limpiar</button>
+            </div>
+          </form>
+          <div id="alert" class="mt-3"></div>
+        </div>
+      </div>
+
+      <div id="out" class=""></div>
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
+
+    <script>
+      const form = document.getElementById('f');
+      const out = document.getElementById('out');
+      const alertBox = document.getElementById('alert');
+      const btnUpload = document.getElementById('btnUpload');
+      const btnReset = document.getElementById('btnReset');
+      const spinner = btnUpload.querySelector('.spinner-border');
+
+      const esc = (v) => String(v ?? '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[m]));
+      const formatMoney = (n, c) => {
+        if (n === null || n === undefined || Number.isNaN(Number(n))) return '—';
+        try { return new Intl.NumberFormat('es-ES', { style:'currency', currency: c || 'USD' }).format(Number(n)); } catch { return Number(n).toFixed(2); }
+      };
+      const formatDate = (iso) => {
+        if (!iso) return '—';
+        try { return new Date(iso).toLocaleString('es-ES'); } catch { return iso; }
+      };
+      const fmtSize = (bytes) => {
+        if (bytes === 0 || bytes == null) return '—';
+        const i = Math.floor(Math.log(bytes) / Math.log(1024));
+        return `${(bytes / Math.pow(1024, i)).toFixed(1)} ${['B','KB','MB','GB','TB'][i]}`;
+      };
+
+      btnReset.addEventListener('click', () => {
+        form.reset();
+        alertBox.innerHTML = '';
+        out.innerHTML = '';
+      });
+
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        alertBox.innerHTML = '';
+        out.innerHTML = '';
+        btnUpload.disabled = true;
+        spinner.classList.remove('d-none');
+        try {
+          const fd = new FormData(form);
+          const res = await fetch('/api/receipts', { method:'POST', body: fd });
+          if (!res.ok) {
+            const text = await res.text();
+            throw new Error(text || `HTTP ${res.status}`);
+          }
+          const data = await res.json();
+          renderResult(data);
+          alertBox.innerHTML = '<div class="alert alert-success alert-dismissible fade show" role="alert">Procesado correctamente.<button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button></div>';
+        } catch (err) {
+          alertBox.innerHTML = `<div class="alert alert-danger" role="alert">Error al procesar: ${esc(err.message || err)}</div>`;
+        } finally {
+          btnUpload.disabled = false;
+          spinner.classList.add('d-none');
+        }
+      });
+
+      function renderResult(d) {
+        const j = d.json || {};
+        const items = Array.isArray(j.items) ? j.items : [];
+        const vendorIds = Array.isArray(j.vendorIdentifications) ? j.vendorIdentifications : [];
+        const payMap = { CARD:'Tarjeta', CASH:'Efectivo', TRANSFER:'Transferencia', OTHER:'Otro' };
+        const typeBadge = j.type === 'income' ? 'success' : 'warning';
+
+        const itemsTable = items.length
+          ? `
+          <div class="card bg-light border">
+            <div class="card-body">
+              <h6 class="card-title mb-3">Ítems (${items.length})</h6>
+              <div class="table-responsive">
+                <table class="table table-sm align-middle mb-0">
+                  <thead>
+                    <tr>
+                      <th>Descripción</th>
+                      <th class="text-end">Cant.</th>
+                      <th class="text-end">Precio</th>
+                      <th class="text-end">Total</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${items.map(it => `
+                      <tr>
+                        <td>${esc(it.description)}</td>
+                        <td class="text-end">${esc(it.quantity)}</td>
+                        <td class="text-end">${formatMoney(it.unitPrice, j.currency)}</td>
+                        <td class="text-end">${formatMoney(it.total, j.currency)}</td>
+                      </tr>
+                    `).join('')}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>`
+          : '';
+
+        const rawText = esc(d.rawText || j.rawText || '');
+        const fullJson = esc(JSON.stringify(d, null, 2));
+        const pay = j.paymentMethod ? payMap[j.paymentMethod] || j.paymentMethod : '—';
+
+        out.innerHTML = `
+          <div class="card bg-light border mb-4">
+            <div class="card-body">
+              <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-2">
+                <div>
+                  <div class="d-flex align-items-center gap-2">
+                    <span class="badge text-bg-${typeBadge}">${esc(j.type || '—')}</span>
+                    <span class="badge text-bg-secondary">${esc(j.currency || 'USD')}</span>
+                  </div>
+                  <h5 class="mt-2 mb-0">${esc(d.originalName || 'Recibo')}</h5>
+                  <small class="text-body-secondary">ID: <code>${esc(d.id || '—')}</code></small>
+                </div>
+                <div class="text-end">
+                  <div class="h4 mb-0">${formatMoney(j.amount, j.currency)}</div>
+                  <small class="text-body-secondary">Total</small>
+                </div>
+              </div>
+
+              <dl class="row kv small mb-0">
+                <dt class="col-sm-3">Fecha</dt><dd class="col-sm-9">${esc(j.date || '—')} <span class="text-body-secondary">(${formatDate(d.createdAt)})</span></dd>
+                <dt class="col-sm-3">Subtotal</dt><dd class="col-sm-9">${formatMoney(j.subtotalAmount, j.currency)}</dd>
+                <dt class="col-sm-3">Impuestos</dt><dd class="col-sm-9">${formatMoney(j.taxAmount, j.currency)} <span class="text-body-secondary">(${j.taxPercentage ?? '—'}%)</span></dd>
+                <dt class="col-sm-3">Proveedor</dt><dd class="col-sm-9">${esc(j.vendorName || '—')} <span class="text-body-secondary">${j.vendorId ? `(id ${esc(j.vendorId)})` : ''}</span></dd>
+                <dt class="col-sm-3">Factura</dt><dd class="col-sm-9">${esc(j.invoiceNumber ?? '—')}</dd>
+                <dt class="col-sm-3">Pago</dt><dd class="col-sm-9">${esc(pay)}</dd>
+                <dt class="col-sm-3">Categoría</dt><dd class="col-sm-9">${j.category ?? '—'}</dd>
+                <dt class="col-sm-3">OCR / IA</dt><dd class="col-sm-9"><span class="badge text-bg-info">${esc(d.ocrProvider || '—')}</span> <span class="badge text-bg-info">${esc(d.aiProvider || '—')}</span></dd>
+                <dt class="col-sm-3">Tamaño</dt><dd class="col-sm-9">${fmtSize(d.size)}</dd>
+              </dl>
+
+              ${vendorIds.length ? `
+                <div class="mt-3">
+                  <div class="text-body-secondary small mb-1">Identificaciones</div>
+                  <div class="d-flex flex-wrap gap-2">
+                    ${vendorIds.map(v => `<span class="badge rounded-pill text-bg-secondary">${esc(v.type)}: ${esc(v.value)}</span>`).join('')}
+                  </div>
+                </div>` : ''}
+            </div>
+          </div>
+
+          ${itemsTable}
+
+          <div class="accordion mb-4" id="acc">
+            <div class="accordion-item">
+              <h2 class="accordion-header">
+                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#raw" aria-expanded="false" aria-controls="raw">
+                  Texto crudo (OCR)
+                </button>
+              </h2>
+              <div id="raw" class="accordion-collapse collapse" data-bs-parent="#acc">
+                <div class="accordion-body">
+                  <pre class="mb-0">${rawText || '<span class="text-body-secondary">(vacío)</span>'}</pre>
+                </div>
+              </div>
+            </div>
+            <div class="accordion-item">
+              <h2 class="accordion-header">
+                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#json" aria-expanded="false" aria-controls="json">
+                  JSON completo
+                </button>
+              </h2>
+              <div id="json" class="accordion-collapse collapse" data-bs-parent="#acc">
+                <div class="accordion-body">
+                  <div class="d-flex justify-content-end mb-2">
+                    <button id="btnCopy" class="btn btn-sm btn-outline-secondary">Copiar JSON</button>
+                  </div>
+                  <pre id="jsonText" class="mb-0">${fullJson}</pre>
+                </div>
+              </div>
+            </div>
+          </div>
+        `;
+
+        const btnCopy = document.getElementById('btnCopy');
+        if (btnCopy) {
+          btnCopy.addEventListener('click', async () => {
+            try {
+              await navigator.clipboard.writeText(JSON.stringify(d, null, 2));
+              btnCopy.textContent = 'Copiado!';
+              setTimeout(() => btnCopy.textContent = 'Copiar JSON', 1500);
+            } catch {}
+          });
+        }
+      }
+    </script>
+  </body>
 </html>
