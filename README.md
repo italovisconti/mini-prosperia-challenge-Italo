@@ -2,6 +2,10 @@
 
 **Objetivo:** a partir de un recibo (PDF o imagen) extraer y persistir **toda** esta información:
 
+Explicaciones de Italo
+
+---
+
 - **Total** (`amount`)
 - **Subtotal** (`subtotalAmount`)
 - **Impuesto** (`taxAmount`)
