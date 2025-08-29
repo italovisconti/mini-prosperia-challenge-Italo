@@ -4,12 +4,6 @@ import { logMethod } from "../../utils/logging/method.decorator.logger.js";
 
 class ComputationService {
   
-  /**
- * Compute missing fields based on the provided ones.
- * Useful to calculate financial when some fields are missing.
- * @param fields - The fields to compute missing values for.
- * @returns The computed fields with missing values filled in.
- */
   @logMethod({scope: "ComputationService"})
   computeMissingFields(fields: ComputedFields): ComputedFields {
     const toTwoDecimals = (v: number) => Math.round(v * 100) / 100;

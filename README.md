@@ -31,7 +31,6 @@
       No hubo aumento de precision al probar el preprocesamiento con ninguna de las dos implementaciones, por lo tanto es **recomendable** utilizar su mock para saltar esta etapa. `PRE_PROCESS_PROVIDER=mock`
 
    - **Configuracion del Worker de Tesseract**: Se configura el worker de Tesseract para que utilice los idiomas adecuados (Español e Inglés), pero también se agrega `osd` para la detección de orientación y lenguaje del documento. Tesseract.js utiliza data pre-entrenada para mejorar la precisión del reconocimiento, existen varios repositorios con modelos entrenados disponibles, pero esta libreria utiliza los mejores modelos disponibles.
-
    También se usa Tesseract con una whitelist de caracteres permitidos para mejorar la precisión.
    `tessedit_char_whitelist: '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZáéíóúÁÉÍÓÚñÑüÜ%:.,-$'`
 
@@ -41,7 +40,7 @@
    - **Configuracion del Modelo de IA**: Utilizando gpt-4o-mini como modelo, se realizaron configuraciones específicas para mejorar la extracción de información. La mas importante fue el uso del output estructurado para guiar al modelo con los campos esperados junto a la descripcion de cada uno. Se bajo un poco la temperatura, reduciendo levemente la "creatividad" del modelo.
 
 3) **Categorización con OpenAI usando el Relay**
-   Por ultimo, categorizamos los recibos usando gpt-4o-mini, como datos de entrada se usan los `accounts` existentes en la base de datos, el nombre del vendedor obtenido en el paso anterior, y el texto crudo del OCR.
+   Por ultimo, categorizamos los recibos, como datos de entrada se usan los `accounts` existentes en la base de datos, el nombre del vendedor obtenido en el paso anterior, y el texto crudo del OCR.
 
    - **Configuracion del Modelo de IA**: Se utiliza el mismo modelo que para la estructuración, se aplican configuraciones similares, incluyendo el uso de output estructurado con la lista de IDs de `accounts`. Se aumenta levemente la temperatura.
 
@@ -69,20 +68,42 @@
    Se implementa un sistema de logging usando la libreria [Pino](https://www.npmjs.com/package/pino)
 
    - **Logs Rotativos y Persistencia**
-   Junto con [pino-roll](https://www.npmjs.com/package/pino-roll) se configura un log rotativo para lograr persistencia.
+   Junto con [pino-roll](https://www.npmjs.com/package/pino-roll) se configura un log rotativo para lograr persistencia. Los logs se guardan en la carpeta `./logs` y se rotan diariamente o cuando alcanzan un tamaño máximo de 20MB.
 
    - **Decorador de Metodos**
    Se implementa un decorador de metodos para agregar logs de entrada y salida a los metodos de los servicios.
 
 8) **Docker**
-   ...
+   Se crea un nuevo archivo `docker-compose.production.yml` para definir los servicios y configuraciones necesarias para el entorno de producción.
+   Servicios:
+
+   - **db**: Contenedor de la base de datos PostgreSQL. Se expone el puerto 5432 (para pruebas)
+   - **server**: Contenedor de la aplicación.  La migración y seed de la base de datos se realiza automáticamente al iniciar el contenedor. Se expone el puerto 3000. Se hace bind a la carpeta `./logs` para persistencia de logs.
 
 ## Diagrama de Flujo
 
    [Disponible en Drive](https://drive.google.com/file/d/1bei-hDz6V2hjabtRqzD_5__VyL0GTXuI/view?usp=sharing)
 
-## Setup Docker
-   ...
+## Correr localmente con Docker
+
+   Una vez clonado el repositorio puedes:
+
+   ```bash
+   cp .env.example .env
+   npm run compose-prod:up
+   ```
+
+## Correr localmente (sin Docker)
+
+   ```bash
+   cp .env.example .env
+   npm i
+   npm run db:generate
+   npm run db:migrate
+   npm run db:seed
+   npm run build
+   npm run start
+   ```
 
 # Planteamiento
 
