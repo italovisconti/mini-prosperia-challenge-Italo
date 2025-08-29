@@ -227,3 +227,6 @@ pre {
 
 .drop-overlay.d-none { display: none !important; }
 
+.alert.alert-success {
+  background: #e0f8d5 !important;
+}

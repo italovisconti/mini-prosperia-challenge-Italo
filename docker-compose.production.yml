@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   db:
     image: postgres:16-alpine
@@ -26,14 +24,16 @@ services:
     restart: unless-stopped
     ports:
       - "3000:3000"
+    volumes:
+      - ./logs:/app/logs
     depends_on:
       db:
         condition: service_healthy
-    # Load environment variables from a .env file in the project root
+    # from a .env file in the project root
     env_file:
       - .env
     environment:
-      # Overrides .env file variables
+      # Override some .env file variables
       DATABASE_URL: "postgresql://postgres:postgres@db:5432/mini_prosperia?schema=public"
       NODE_ENV: production
       PORT: 3000

@@ -182,7 +182,9 @@ function renderResult(d) {
   );
 
   // Fill details
-  clone.querySelector('#receiptDate').textContent = j.date || '—';
+  clone.querySelector('#receiptDate').textContent = j.date
+    ? new Date(j.date).toISOString().slice(0, 10)
+    : '—';
   clone.querySelector('#createdAt').textContent = formatDate(d.createdAt);
   clone.querySelector('#subtotal').textContent = formatMoney(
     j.subtotalAmount,
@@ -207,16 +209,18 @@ function renderResult(d) {
   clone.querySelector('#fileSize').textContent = formatSize(d.size);
 
   // Fill vendor identifications
-  if (vendorIds.length > 0) {
     const vendorSection = clone.querySelector('#vendorIdentifications');
     const vendorList = clone.querySelector('#vendorIdsList');
     vendorSection.classList.remove('d-none');
+  if (vendorIds.length > 0) {
     vendorList.innerHTML = vendorIds
       .map(
         (v) =>
           `<span class="badge rounded-pill text-bg-secondary">${esc(v.type)}: ${esc(v.value)}</span>`
       )
       .join('');
+  } else {
+    vendorList.innerHTML = '<span class="badge rounded-pill text-bg-secondary">No se encontraron identificaciones</span>';
   }
 
   // Fill items

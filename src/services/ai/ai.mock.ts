@@ -1,6 +1,9 @@
 import { AiProvider } from "./ai.interface.js";
 import type { ParsedReceipt } from "../../types/receipt.js";
+import { logMethod } from "../../utils/logging/method.decorator.logger.js";
 export class MockAi implements AiProvider {
+
+  @logMethod({ scope: "AI:Mock" })
   async structure(rawText: string) {
     const totalMatch = rawText.match(/total\D*(\d+[\.,]\d{2})/i);
     const taxMatch = rawText.match(/(iva|itbms|impuesto)[^\d]*(\d+[\.,]\d{2})/i);

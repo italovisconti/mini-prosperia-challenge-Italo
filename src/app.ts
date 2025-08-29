@@ -3,6 +3,14 @@ import path from "path";
 import receiptsRouter from "./routes/receipts.routes.js";
 import transactionsRouter from "./routes/transactions.routes.js";
 import { logger } from "./config/logger.js";
+import fs from "fs";
+import process from "process";
+
+// Log dir
+const logDir = path.resolve(process.cwd(), "logs");
+if (!fs.existsSync(logDir)) {
+  fs.mkdirSync(logDir, { recursive: true });
+}
 
 const app = express();
 app.use(express.json());

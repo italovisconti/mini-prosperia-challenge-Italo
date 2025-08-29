@@ -6,7 +6,7 @@ import { categorize } from "./parsing/categorizer.js";
 import { logger } from "../config/logger.js";
 import { getOrCreateVendorByIdentifications } from "./vendors.service.js";
 import { ParsedReceipt } from "../types/receipt.js";
-import { computeMissing } from "./computation/computeMissing.js";
+import { computationService } from "./computation/computation.js";
 import { getToImageProvider } from "./toImage/index.js";
 import { getPreprocessProvider } from "./preprocess/index.js";
 
@@ -21,7 +21,6 @@ export async function processReceipt(filePath: string, meta: { originalName: str
   // Preprocesar Imagen
   const { imagePath: processedImagePath, mimeType: processedMimeType } = await preprocess.preprocessToOCR({ filePath: imagePath, mimeType: ocrMime });
 
-  // const ocrOut = await ocr.extractText({ filePath: imagePath, mimeType: ocrMime });
   const ocrOut = await ocr.extractText({ filePath: processedImagePath, mimeType: processedMimeType });
 
   // 1) Reglas rápidas (incluye vendor identifications naive)
@@ -35,14 +34,9 @@ export async function processReceipt(filePath: string, meta: { originalName: str
   // 3) Implementar Categoría heurística
   const category = await categorize(ocrOut.text);
 
-  const aiCategory = await ai.categorize({ rawText: ocrOut.text });
+  const aiCategory = await ai.categorize({ rawText: ocrOut.text, vendorName: aiStruct.vendorName ?? base.vendorName ?? undefined });
 
-  // amount: 67.84,
-  // subtotalAmount: null,
-  // taxAmount: null,
-  // taxPercentage: 7,
-
-  const computedValues = computeMissing({
+  const computedValues = computationService.computeMissingFields({
     amount: aiStruct.amount ?? base.amount ?? null,
     subtotalAmount: aiStruct.subtotalAmount ?? base.subtotalAmount ?? null,
     taxAmount: aiStruct.taxAmount ?? base.taxAmount ?? null,
@@ -76,26 +70,10 @@ export async function processReceipt(filePath: string, meta: { originalName: str
     vendorIdentifications: aiStruct.vendorIdentifications ?? base.vendorIdentifications ?? [],
     items: aiStruct.items ?? [],
     rawText: ocrOut.text,
-    // PruebaTecnicaInfo: null as any
   };
-
-  const PruebaTecnicaInfo = {
-    amount: aiStruct.amount ?? base.amount ?? null,
-    subtotalAmount: aiStruct.subtotalAmount ?? base.subtotalAmount ?? null,
-    taxAmount: aiStruct.taxAmount ?? base.taxAmount ?? null,
-    taxPercentage: aiStruct.taxPercentage ?? base.taxPercentage ?? null,
-    vendorName: aiStruct.vendorName ?? base.vendorName ?? null,
-    vendorIdentifications: aiStruct.vendorIdentifications ?? base.vendorIdentifications ?? [],
-    category: aiCategory.category ?? category ?? null,
-  };
-
-  // json.PruebaTecnicaInfo = PruebaTecnicaInfo;
-
-  console.log("Final extracted JSON:", json);
 
   if (json.amount === null) {
-    logger.error("Amount could not be extracted. Extracted JSON: " + JSON.stringify(json));
-    throw new Error(`Amount could not be extracted. Extracted JSON: ${JSON.stringify(json)}`);
+    throw new Error(`Amount could not be extracted from the receipt.`);
   }
 
   const vendor = await getOrCreateVendorByIdentifications({
@@ -108,7 +86,7 @@ export async function processReceipt(filePath: string, meta: { originalName: str
   const saved = await prisma.receipt.create({
     data: {
       originalName: meta.originalName,
-      mimeType: processedImagePath,
+      mimeType: processedMimeType,
       size: meta.size,
       storagePath: processedImagePath,
       rawText: ocrOut.text,

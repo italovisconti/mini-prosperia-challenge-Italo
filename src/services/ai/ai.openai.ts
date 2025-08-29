@@ -3,6 +3,7 @@ import { ParsedReceipt } from '../../types/receipt.js';
 import { AiProvider } from './ai.interface.js';
 import axios from 'axios';
 import { PrismaClient } from '@prisma/client';
+import { logMethod } from '../../utils/logging/method.decorator.logger.js';
 const prisma = new PrismaClient();
 
 export class OpenAiProvider implements AiProvider {
@@ -25,16 +26,18 @@ export class OpenAiProvider implements AiProvider {
 
     var defCategorizePrompt = `You are an intelligent assistant that helps categorize invoices and receipts either in spanish or english.
             Your task is to analyze the text extracted by OCR (rawText) and return the relevant information in JSON format.
-            Extract fields only if they are present.
             If any field is not present, use null or an empty list.
             Respond only with the JSON object, without any additional explanations.
-            For the category field, select the most appropriate account name and return its corresponding id.`;
+            From the provided accounts, pick the best match and return only its numeric id in categoryId. If no match is found, return null.
+            The provider name could be provided, if not, you need to check in the rawText hints about the vendor name and item names to find the best match.
+            `;
 
     this.categorizePrompt =
       process.env.OPENAI_CATEGORIZE_PROMPT || defCategorizePrompt;
   }
 
   // TODO: Implementar extracción de información con IA del rawText
+  @logMethod({ scope: "AI:OpenAI" })
   async structure(rawText: string) {
     const payload = {
       // Do not change the model. Only gpt-4o-mini works
@@ -73,7 +76,7 @@ export class OpenAiProvider implements AiProvider {
               type: { type: 'string', enum: ['expense', 'income'] },
               currency: {
                 type: ['string', 'null'],
-                description: 'ISO 4217 currency code'
+                description: 'ISO 4217 currency code, if not recognized default to USD'
               },
               date: {
                 type: ['string', 'null'],
@@ -120,7 +123,6 @@ export class OpenAiProvider implements AiProvider {
 
     let resp;
     try {
-      console.log('Sending Structure OpenAI request...');
       resp = await axios.post(`${this.baseUrl}/openai/chat`, payload, {
         headers: { 'X-Prosperia-Token': this.token }
       });
@@ -133,9 +135,6 @@ export class OpenAiProvider implements AiProvider {
     }
 
     const responseContent = resp?.data?.choices?.[0]?.message?.content;
-    logger.info(
-      'Structure OpenAI response: ' + (responseContent ?? 'no content')
-    );
     let result: Partial<ParsedReceipt> = {};
 
     if (responseContent) {
@@ -161,16 +160,14 @@ export class OpenAiProvider implements AiProvider {
 
   // TODO: Implementar categorize con openAI para que retorne la categoria/cuenta
   // a la que la factura debería ir destinada
-  async categorize(input: {
-    rawText: string;
-    items?: ParsedReceipt['items'];
-  }): Promise<Partial<ParsedReceipt>> {
+  @logMethod({ scope: "AI:OpenAI" })
+  async categorize(input: { rawText: string; vendorName?: string; items?: ParsedReceipt['items']; }): Promise<Partial<ParsedReceipt>> {
     const accounts = await prisma.account.findMany();
 
     const allowedAccounts = accounts.map((a) => ({ id: a.id, name: a.name }));
     const allowedIds = allowedAccounts.map((a) => a.id);
 
-    console.log('Available accounts:', allowedAccounts);
+    logger.info('Available accounts: ' + JSON.stringify(allowedAccounts));
 
     // If there are no accounts to choose from, bail early
     if (allowedIds.length === 0) {
@@ -186,13 +183,12 @@ export class OpenAiProvider implements AiProvider {
           role: 'user',
           content: JSON.stringify({
             rawText: input.rawText,
+            vendorName: input.vendorName || null,
             accounts: allowedAccounts,
-            instruction: `From the provided accounts, pick the best match and return only its numeric id in categoryId. If no match is found, return null.
-                        You need to check in the rawText hints about the vendor name and item names to find the best match.`
           })
         }
       ],
-      temperature: 0.3, // Less creative
+      temperature: 0.5,
       response_format: {
         type: 'json_schema',
         json_schema: {
@@ -206,7 +202,7 @@ export class OpenAiProvider implements AiProvider {
               category: {
                 type: 'integer',
                 enum: allowedIds,
-                description: 'ID of the chosen account. You '
+                description: 'ID of the chosen account. You must provide a valid account ID from the list.'
               }
             }
           }
@@ -216,7 +212,6 @@ export class OpenAiProvider implements AiProvider {
 
     let resp;
     try {
-      console.log('Sending Categorize OpenAI request...');
       resp = await axios.post(`${this.baseUrl}/openai/chat`, payload, {
         headers: { 'X-Prosperia-Token': this.token }
       });
@@ -229,9 +224,6 @@ export class OpenAiProvider implements AiProvider {
     }
 
     const responseContent = resp?.data?.choices?.[0]?.message?.content;
-    logger.info(
-      'Categorize OpenAI response: ' + (responseContent ?? 'no content')
-    );
     let result: Partial<ParsedReceipt> = {};
 
     if (responseContent) {
@@ -243,6 +235,7 @@ export class OpenAiProvider implements AiProvider {
           'Failed to parse Structure OpenAI response: ' +
             (err instanceof Error ? err.message : String(err))
         );
+        return {};
       }
     }
 

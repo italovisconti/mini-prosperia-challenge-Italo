@@ -14,13 +14,12 @@ RUN npm run build
 FROM node:20-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production
-RUN apk add --no-cache graphicsmagick ghostscript
+RUN apk add --no-cache graphicsmagick ghostscript openssl
 COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/prisma ./prisma
+COPY --from=builder /app/public ./public
 COPY package*.json .
 # COPY .env ./.env
 RUN npm ci --omit=dev
 EXPOSE 3000
-# CMD ["npm", "run", "db:generate"]
-# CMD ["npm", "run", "db:migrate"]
-# CMD ["npm", "run", "db:seed"]
 CMD ["node", "dist/server.js"]

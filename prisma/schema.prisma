@@ -42,6 +42,8 @@ model Vendor {
   updatedAt        DateTime                @updatedAt
   identifications  VendorIdentification[]
   transactions     Transaction[]
+
+  @@unique([name])
 }
 
 model VendorIdentification {
@@ -72,6 +74,7 @@ model Account {
   payments     Transaction[] @relation("TransactionPaymentAccount")
 
   @@index([type])
+  @@unique([name])
 }
 
 model Receipt {

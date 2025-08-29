@@ -7,7 +7,6 @@ export function naiveParse(rawText: string): Partial<ParsedReceipt> {
   const subtotal = findNumber(norm, /(subtotal|sub\s*total)\s*[:=]?\s*(\d+[\.,]\d{2})/i);
   const tax = findNumber(norm, /(iva|itbms|impuesto)\s*[:=]?\s*(\d+[\.,]\d{2})/i);
   // Si no tenemos el tax amount pero si el % (o viceversa), podriamos calcularlo en base subtotal
-  // const tax = findNumber(norm, /(?:iva|itbms|impuesto)(?:\s+\d{1,3}(?:[\.,]\d{1,2})?\s*%)?\s*[:=]?\s*(\d+(?:[\.,]\d{1,2})?)/i);
   const pct = findNumber(norm, /(\d{1,2}[\.,]?\d{0,2})\s*%/i);
   const date = findDate(norm);
   const invoice = findInvoice(norm);
@@ -23,17 +22,6 @@ function guessVendorName(raw: string): string | null {
   const lines = raw.split(/\n|\r/).map(l=>l.trim()).filter(Boolean);
   return lines[0]?.slice(0,80) || null;
 }
-
-// function extractVendorIdentifications(text: string): VendorIdentification[] {
-//   const ids: VendorIdentification[] = [];
-//   // Patrones genéricos para RUC/NIT/CIF (muy básicos)
-//   const patterns = [ /ruc[:\s-]*([a-z0-9-\.]{6,20})/i, /nit[:\s-]*([a-z0-9-\.]{6,20})/i, /cif[:\s-]*([a-z0-9-\.]{6,20})/i ];
-//   for (const re of patterns) {
-//     const m = text.match(re);
-//     if (m && m[1]) ids.push({ type: re.source, value: m[1].toUpperCase() });
-//   }
-//   return Array.from(new Set(ids));
-// }
 
 // Vendor Identifications no solo necesita el id, tambien el tipo
 function extractVendorIdentifications(text: string): VendorIdentification[] {

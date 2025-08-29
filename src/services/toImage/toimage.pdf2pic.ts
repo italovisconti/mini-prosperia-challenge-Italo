@@ -2,9 +2,11 @@ import { toImageProvider } from "./toimage.js";
 import path from "path";
 import fs from "fs";
 import { fromPath } from "pdf2pic";
-import { logger } from "../../config/logger.js";
+import { logMethod } from "../../utils/logging/method.decorator.logger.js";
 
 export class PDF2PicProvider implements toImageProvider {
+  
+  @logMethod({ scope: "ToImage:PDF2Pic" })
   async convert(input: { filePath: string; mimeType: string }): Promise<{ imagePath: string, mimeType: string }> {
     const { filePath, mimeType } = input;
 
@@ -22,13 +24,12 @@ export class PDF2PicProvider implements toImageProvider {
     const saveFilename = `${base}-page`;
 
     const converter = fromPath(filePath, {
-      density: 600,
+      density: 300,
       format: "png",
       savePath: dir,
       saveFilename,
       quality: 100,
       width: 1920,
-      height: 1080,
       preserveAspectRatio: true
     });
 
@@ -38,13 +39,9 @@ export class PDF2PicProvider implements toImageProvider {
     const outPath = result.path ?? path.join(dir, `${saveFilename}_1.png`);
     const outMimeType = "image/png";
 
-    // Ensure file exists before returning
     if (!fs.existsSync(outPath)) {
-      // Fallback to original path if something went wrong
       return { imagePath: filePath, mimeType };
     }
-
-    logger.info({ message: "PDF converted to image", filePath, outPath, outMimeType });
 
     return { imagePath: outPath, mimeType: outMimeType };
   }

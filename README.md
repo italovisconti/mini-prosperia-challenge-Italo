@@ -1,10 +1,92 @@
 # Mini-Prosperia – Challenge (OCR + IA)
 
+## Implementaciones realizadas
+
+1) **OCR con Tesseract (obligatorio)**
+   Se hace uso de la libreria [Tesseract.js](https://www.npmjs.com/package/tesseract.js) para reconocer caracteres en los documentos enviados.
+
+   - **Uso de PDFs con Tesseract.js**: Tesseract.js no permite procesar PDFs de manera directa, por lo que se convierten todos los documentos de tipo PDF a imagen antes de ser procesados. Para esto se utiliza la libreria [pdf2pic](https://www.npmjs.com/package/pdf2pic) mediante la creacion de un servicio de conversión.
+
+   - **Preprocesamiento de Imagenes**
+   Se implementaron las tecnicas mas comunes de preprocesamiento de imagenes para aumentar la precision del OCR.
+   Los pasos a seguir son:
+      1. Invertir Imagen.
+      2. Convertir a Escala de Grises.
+      3. Reducción de Ruido (Mediana).
+      4. Binarización de Imagen con Umbralización adaptativa (Otsu).
+      [Fuente](https://www.youtube.com/watch?v=ADV-AjAXHdc)
+
+      - **Preprocesamiento con Sharp**
+      Se utiliza la librería [Sharp](https://www.npmjs.com/package/sharp) para realizar operaciones de preprocesamiento en las imágenes. Esta implementación se llevó a cabo con apoyo de IA.
+
+      - **Preprocesamiento con Canvas**
+      Se utiliza la librería [canvas](https://www.npmjs.com/package/canvas) para realizar operaciones de preprocesamiento en las imágenes.
+      La implementación fue obtenida de: [dev.to](https://dev.to/mathewthe2/using-javascript-to-preprocess-images-for-ocr-1jc)
+      El preprocesamiento implementado con canvas fue comentado y no se utilizó en la implementación final.
+
+      - **Consideraciones**
+      También se puede usar [OpenCV](https://opencv.org/) para el preprocesamiento de imágenes, este parece ser un método más común.
+
+      - **IMPORTANTE**
+      No hubo aumento de precision al probar el preprocesamiento con ninguna de las dos implementaciones, por lo tanto es **recomendable** utilizar su mock para saltar esta etapa. `PRE_PROCESS_PROVIDER=mock`
+
+   - **Configuracion del Worker de Tesseract**: Se configura el worker de Tesseract para que utilice los idiomas adecuados (Español e Inglés), pero también se agrega `osd` para la detección de orientación y lenguaje del documento. Tesseract.js utiliza data pre-entrenada para mejorar la precisión del reconocimiento, existen varios repositorios con modelos entrenados disponibles, pero esta libreria utiliza los mejores modelos disponibles.
+
+   También se usa Tesseract con una whitelist de caracteres permitidos para mejorar la precisión.
+   `tessedit_char_whitelist: '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZáéíóúÁÉÍÓÚñÑüÜ%:.,-$'`
+
+2) **Estructuración y/o parsing de campos**
+   Una vez obtenido el texto crudo del documento se procede a estructurarlo y extraer los campos relevantes, si bien esto se puede lograr utilizando expresiones regulares, también se puede implementar un modelo de IA que ayude a identificar y clasificar la información de manera más precisa.
+
+   - **Configuracion del Modelo de IA**: Utilizando gpt-4o-mini como modelo, se realizaron configuraciones específicas para mejorar la extracción de información. La mas importante fue el uso del output estructurado para guiar al modelo con los campos esperados junto a la descripcion de cada uno. Se bajo un poco la temperatura, reduciendo levemente la "creatividad" del modelo.
+
+3) **Categorización con OpenAI usando el Relay**
+   Por ultimo, categorizamos los recibos usando gpt-4o-mini, como datos de entrada se usan los `accounts` existentes en la base de datos, el nombre del vendedor obtenido en el paso anterior, y el texto crudo del OCR.
+
+   - **Configuracion del Modelo de IA**: Se utiliza el mismo modelo que para la estructuración, se aplican configuraciones similares, incluyendo el uso de output estructurado con la lista de IDs de `accounts`. Se aumenta levemente la temperatura.
+
+4) **Cálculo de campos faltantes**
+   Como herramienta de fallback, se implementa un servicio que permite calcular los campos numéricos principales cuando no se detectan directamente en el OCR o parsing. Los campos involucrados son:
+
+   - **Monto total** (`amount`)
+   - **Subtotal** (`subtotalAmount`)
+   - **Impuesto** (`taxAmount`)
+   - **Porcentaje de impuesto** (`taxPercentage`)
+
+   Se hacen cálculos básicos para completar los valores faltantes y asegurar la persistencia de todos los campos requeridos.
+
+5) **Persistencia de datos**
+   Todos los datos obtenidos persisten en la base de datos, especificamente en las tablas `Receipts`, `Transactions`, `Vendor` y `vendorIdentifications`.
+
+   - **Creacion de Vendors**: se implementa un servicio que permite crear nuevos vendors a partir de nuevas identificaciones obtenidas en el Documento. En caso de que estos ya existan, se actualizan.
+
+6) **UI**
+   Se implementa una interfaz de usuario simple que permite a los usuarios subir imágenes o PDFs y ver la transacción desglosada. La UI se basa en un formulario en `/public/index.html`.
+
+   ![UI Screenshot](https://github.com/user-attachments/assets/9e2cb643-7130-41fd-97c3-a14b49b2e241)
+
+7) **Logging**
+   Se implementa un sistema de logging usando la libreria [Pino](https://www.npmjs.com/package/pino)
+
+   - **Logs Rotativos y Persistencia**
+   Junto con [pino-roll](https://www.npmjs.com/package/pino-roll) se configura un log rotativo para lograr persistencia.
+
+   - **Decorador de Metodos**
+   Se implementa un decorador de metodos para agregar logs de entrada y salida a los metodos de los servicios.
+
+8) **Docker**
+   ...
+
+## Diagrama de Flujo
+
+   [Disponible en Drive](https://drive.google.com/file/d/1bei-hDz6V2hjabtRqzD_5__VyL0GTXuI/view?usp=sharing)
+
+## Setup Docker
+   ...
+
+# Planteamiento
+
 **Objetivo:** a partir de un recibo (PDF o imagen) extraer y persistir **toda** esta información:
-
-Explicaciones de Italo
-
----
 
 - **Total** (`amount`)
 - **Subtotal** (`subtotalAmount`)
