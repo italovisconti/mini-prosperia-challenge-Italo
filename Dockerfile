@@ -18,6 +18,7 @@ RUN apk add --no-cache graphicsmagick ghostscript openssl
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/public ./public
+COPY --from=builder /app/*.traineddata ./
 COPY package*.json .
 # COPY .env ./.env
 RUN npm ci --omit=dev

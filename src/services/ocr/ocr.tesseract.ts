@@ -16,7 +16,7 @@ export class TesseractOcr implements OcrProvider {
         this.langs,
         Tesseract.OEM.LSTM_ONLY,
         {
-          // langPath: this.appRoot + '/tess-trained-data/best',
+          // langPath: this.appRoot + '/tess-trained-data/',
           // gzip: false,
           // logger: m => logger.info(m),
           errorHandler: err => logger.error(err)

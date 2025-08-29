@@ -16,9 +16,9 @@ export async function processReceipt(filePath: string, meta: { originalName: str
   const toImage = getToImageProvider();
   const preprocess = getPreprocessProvider();
 
-  // Convertir a Imagen
+  // Convert to Image
   const { imagePath, mimeType: ocrMime } = await toImage.convert({ filePath, mimeType: meta.mimeType });
-  // Preprocesar Imagen
+  // Preprocess Image
   const { imagePath: processedImagePath, mimeType: processedMimeType } = await preprocess.preprocessToOCR({ filePath: imagePath, mimeType: ocrMime });
 
   const ocrOut = await ocr.extractText({ filePath: processedImagePath, mimeType: processedMimeType });
