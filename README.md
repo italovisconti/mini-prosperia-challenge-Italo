@@ -5,10 +5,10 @@
 1) **OCR con Tesseract (obligatorio)**
    Se hace uso de la libreria [Tesseract.js](https://www.npmjs.com/package/tesseract.js) para reconocer caracteres en los documentos enviados.
 
-   - **Uso de PDFs con Tesseract.js**: Tesseract.js no permite procesar PDFs de manera directa, por lo que se convierten todos los documentos de tipo PDF a imagen antes de ser procesados. Para esto se utiliza la libreria [pdf2pic](https://www.npmjs.com/package/pdf2pic) mediante la creacion de un servicio de conversión.
+   - **Uso de PDFs con Tesseract.js**: Tesseract.js no permite procesar PDFs de manera directa, por lo que se convierten todos los documentos de tipo PDF a imagen antes de ser procesados. Para esto se utiliza la libreria [pdf2pic](https://www.npmjs.com/package/pdf2pic) mediante la creación de un servicio de conversión.
 
-   - **Preprocesamiento de Imagenes**
-   Se implementaron las tecnicas mas comunes de preprocesamiento de imagenes para aumentar la precision del OCR.
+   - **Preprocesamiento de Imágenes**
+   Se implementaron las técnicas más comunes de preprocesamiento de imágenes para aumentar la precisión del OCR.
    Los pasos a seguir son:
       1. Invertir Imagen.
       2. Convertir a Escala de Grises.
@@ -28,21 +28,21 @@
       También se puede usar [OpenCV](https://opencv.org/) para el preprocesamiento de imágenes, este parece ser un método más común.
 
       - **IMPORTANTE**
-      No hubo aumento de precision al probar el preprocesamiento con ninguna de las dos implementaciones, por lo tanto es **recomendable** utilizar su mock para saltar esta etapa. `PRE_PROCESS_PROVIDER=mock`
+      No hubo aumento de precisión al probar el preprocesamiento con ninguna de las dos implementaciones, por lo tanto es **recomendable** utilizar su mock para saltar esta etapa. `PRE_PROCESS_PROVIDER=mock`
 
-   - **Configuracion del Worker de Tesseract**: Se configura el worker de Tesseract para que utilice los idiomas adecuados (Español e Inglés), pero también se agrega `osd` para la detección de orientación y lenguaje del documento. Tesseract.js utiliza data pre-entrenada para mejorar la precisión del reconocimiento, existen varios repositorios con modelos entrenados disponibles, pero esta libreria utiliza los mejores modelos disponibles.
+   - **Configuración del Worker de Tesseract**: Se configura el worker de Tesseract para que utilice los idiomas adecuados (Español e Inglés), pero también se agrega `osd` para la detección de orientación y lenguaje del documento. Tesseract.js utiliza data pre-entrenada para mejorar la precisión del reconocimiento, existen varios repositorios con modelos entrenados, pero esta librería utiliza los mejores disponibles.
    También se usa Tesseract con una whitelist de caracteres permitidos para mejorar la precisión.
    `tessedit_char_whitelist: '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZáéíóúÁÉÍÓÚñÑüÜ%:.,-$'`
 
 2) **Estructuración y/o parsing de campos**
    Una vez obtenido el texto crudo del documento se procede a estructurarlo y extraer los campos relevantes, si bien esto se puede lograr utilizando expresiones regulares, también se puede implementar un modelo de IA que ayude a identificar y clasificar la información de manera más precisa.
 
-   - **Configuracion del Modelo de IA**: Utilizando gpt-4o-mini como modelo, se realizaron configuraciones específicas para mejorar la extracción de información. La mas importante fue el uso del output estructurado para guiar al modelo con los campos esperados junto a la descripcion de cada uno. Se bajo un poco la temperatura, reduciendo levemente la "creatividad" del modelo.
+   - **Configuración del Modelo de IA**: Utilizando gpt-4o-mini como modelo, se realizaron configuraciones específicas para mejorar la extracción de información. La mas importante fue el uso del output estructurado para guiar al modelo con los campos esperados junto a la descripcion de cada uno. Se bajo un poco la temperatura, reduciendo levemente la "creatividad" del modelo.
 
 3) **Categorización con OpenAI usando el Relay**
    Por ultimo, categorizamos los recibos, como datos de entrada se usan los `accounts` existentes en la base de datos, el nombre del vendedor obtenido en el paso anterior, y el texto crudo del OCR.
 
-   - **Configuracion del Modelo de IA**: Se utiliza el mismo modelo que para la estructuración, se aplican configuraciones similares, incluyendo el uso de output estructurado con la lista de IDs de `accounts`. Se aumenta levemente la temperatura.
+   - **Configuración del Modelo de IA**: Se utiliza el mismo modelo que para la estructuración, se aplican configuraciones similares, incluyendo el uso de output estructurado con la lista de IDs de `accounts`. Se aumenta levemente la temperatura.
 
 4) **Cálculo de campos faltantes**
    Como herramienta de fallback, se implementa un servicio que permite calcular los campos numéricos principales cuando no se detectan directamente en el OCR o parsing. Los campos involucrados son:
@@ -57,7 +57,7 @@
 5) **Persistencia de datos**
    Todos los datos obtenidos persisten en la base de datos, especificamente en las tablas `Receipts`, `Transactions`, `Vendor` y `vendorIdentifications`.
 
-   - **Creacion de Vendors**: se implementa un servicio que permite crear nuevos vendors a partir de nuevas identificaciones obtenidas en el Documento. En caso de que estos ya existan, se actualizan.
+   - **Creación de Vendors**: se implementa un servicio que permite crear nuevos vendors a partir de nuevas identificaciones obtenidas en el Documento. En caso de que estos ya existan, se actualizan.
 
 6) **UI**
    Se implementa una interfaz de usuario simple que permite a los usuarios subir imágenes o PDFs y ver la transacción desglosada. La UI se basa en un formulario en `/public/index.html`.
@@ -70,8 +70,8 @@
    - **Logs Rotativos y Persistencia**
    Junto con [pino-roll](https://www.npmjs.com/package/pino-roll) se configura un log rotativo para lograr persistencia. Los logs se guardan en la carpeta `./logs` y se rotan diariamente o cuando alcanzan un tamaño máximo de 20MB.
 
-   - **Decorador de Metodos**
-   Se implementa un decorador de metodos para agregar logs de entrada y salida a los metodos de los servicios.
+   - **Decorador de Métodos**
+   Se implementa un decorador de métodos para agregar logs de entrada y salida a los métodos de los servicios.
 
 8) **Docker**
    Se crea un nuevo archivo `docker-compose.production.yml` para definir los servicios y configuraciones necesarias para el entorno de producción.
